@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>MyQuran UI Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Naskh+Arabic:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="bg"></div>
+<button class="net" id="net" title="Simulasi koneksi"><i class="dot"></i><span id="netTxt">Online</span></button>
+<div class="banner" id="banner"></div>
+
+<main class="page">
+  <h1 class="rise" style="--r:0"><b>MyQuran</b>, just listen.</h1>
+  <p class="sub rise" style="--r:1">114 surah. Streaming dan offline.</p>
+  <div class="tabs rise" id="tabs" data-tab="all" style="--r:2">
+    <button class="on" data-t="all" id="tabAll">Semua</button>
+    <button data-t="dl" id="tabDl">Terunduh</button>
+  </div>
+  <div class="search rise" style="--r:3">
+    <input id="q" type="text" placeholder="Cari surah, nomor, atau arti" autocomplete="off">
+    <span id="searchIc"></span>
+  </div>
+  <div class="rise" style="--r:4">
+    <div class="list collapsed" id="list"></div>
+    <div class="hint" id="hint"><span id="hintIc"></span>Ketuk kartu untuk membuka semua surah</div>
+    <div class="empty" id="empty"></div>
+  </div>
+</main>
+
+<div class="mini" id="mini">
+  <div class="m-open" id="mOpen">
+    <div class="m-tx"><div class="m-t1" id="mName"></div><div class="m-t2" id="mSub"></div></div>
+    <div class="m-ar ar" id="mAr"></div>
+  </div>
+  <button class="ib" id="mBook"></button>
+  <button class="ib" id="mLyr"></button>
+  <button class="pbtn" id="mPlay"></button>
+  <div class="m-prog"><i id="mFill"></i></div>
+</div>
+
+<section class="player" id="player" aria-hidden="true">
+  <div class="p-bg"></div>
+  <header class="p-top">
+    <button class="ib" id="pClose"></button>
+    <div class="p-label">Sedang diputar</div>
+    <button class="ib dlbtn" id="pDl"></button>
+  </header>
+  <div class="stage" id="stage">
+    <div class="cover">
+      <svg class="star" viewBox="0 0 100 100" fill="none" stroke="#fff" stroke-width=".6"><rect x="22" y="22" width="56" height="56"/><rect x="22" y="22" width="56" height="56" transform="rotate(45 50 50)"/><circle cx="50" cy="50" r="48"/></svg>
+      <div class="c-lab ar">سورة</div>
+      <div class="c-ar ar" id="cAr"></div>
+      <div class="c-name" id="cName"></div>
+      <div class="c-sub" id="cSub"></div>
+    </div>
+    <div class="lyrics" id="lyrics"><div class="ly-in" id="lyIn"></div></div>
+    <button class="trtog on" id="trTog">Terjemahan</button>
+  </div>
+  <footer class="p-bot">
+    <div class="seek" id="seek"><div class="trk"><i id="sFill"></i></div><b id="sThumb"></b></div>
+    <div class="times"><span id="tCur">0:00</span><span id="tDur">0:00</span></div>
+    <div class="p-title"><span id="pName"></span><em></em><span class="ar" id="pAr"></span></div>
+    <div class="ctrls">
+      <button id="pBook"></button>
+      <button id="pPrev"></button>
+      <button class="big" id="pPlay"></button>
+      <button id="pNext"></button>
+      <button id="pLyr"></button>
+    </div>
+  </footer>
+</section>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

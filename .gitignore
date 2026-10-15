@@ -1,0 +1,27 @@
+test/
+# deps
+node_modules/
+
+# build output
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# env and secrets
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# os
+.DS_Store
+Thumbs.db
+Desktop.ini
