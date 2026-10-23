@@ -1,6 +1,6 @@
 
 import { CFG } from './config.js';
-import { remoteUrl, localAudioSrc, scanDownloaded, downloadSurah } from './data.js';
+import { remoteUrl, localAudioSrc, scanDownloaded, downloadSurah, loadLocalSurahData, fetchRemoteSurahData } from './data.js';
 import { showError } from './toast.js';
 
 const RAW=`Al-Fatihah|الفاتحة|Pembukaan|7
@@ -233,13 +233,58 @@ function setTab(t){
 }
 
 /* lyrics data */
-function buildLines(s){
-  if(s.id===1){
-    const dur=58;
-    return{dur,list:FATIHAH.map((l,i)=>({ar:l[0],tr:l[1],s:l[2],e:i<FATIHAH.length-1?FATIHAH[i+1][2]:dur}))};
+function buildLinesFromData(s, suratData, timingData) {
+  // Default fallback: no timing, just verses with translation
+  const verses = [];
+  if (suratData && suratData.data && Array.isArray(suratData.data.ayat)) {
+    for (const a of suratData.data.ayat) {
+      const v = a.nomorAyat || verses.length + 1;
+      const ar = a.teksArab || '';
+      const tr = a.teksIndonesia || '';
+      verses.push({ ayah: v, ar, tr });
+    }
+  } else {
+    // Minimal placeholder: just verse numbers
+    for (let v = 1; v <= s.c; v++) {
+      verses.push({ ayah: v, ar: `Ayah ${v}`, tr: `Verse ${v}` });
+    }
   }
-  const n=Math.min(s.c,12),dur=Math.max(20,Math.min(s.c*8,240)),step=dur/n;
-  return{dur,list:Array.from({length:n},(_,i)=>({ar:'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ',tr:`Ayat ${i+1}. Teks contoh, data asli dari API.`,s:i*step,e:(i+1)*step}))};
+
+  // Map timing by ayah
+  const timingMap = {};
+  if (Array.isArray(timingData)) {
+    for (const t of timingData) {
+      if (t.ayah > 0) { // skip ayah 0
+        timingMap[t.ayah] = { start: t.start_time / 1000, end: t.end_time / 1000 };
+      }
+    }
+  }
+
+  // Build lines with timing where available
+  const lines = [];
+  let maxEnd = 0;
+  for (const v of verses) {
+    const tm = timingMap[v.ayah];
+    if (tm) {
+      lines.push({ ar: v.ar, tr: v.tr, s: tm.start, e: tm.end });
+      if (tm.end > maxEnd) maxEnd = tm.end;
+    } else {
+      lines.push({ ar: v.ar, tr: v.tr, s: null, e: null });
+    }
+  }
+
+  return { dur: maxEnd || 0, list: lines };
+}
+
+function buildLines(s) {
+  // This will be replaced by async loading in play()
+  // Keep a minimal synchronous fallback for Al-Fatihah to avoid breaking existing UI before async loads.
+  if (s.id === 1) {
+    const dur = 58;
+    return { dur, list: FATIHAH.map((l, i) => ({ ar: l[0], tr: l[1], s: l[2], e: i < FATIHAH.length - 1 ? FATIHAH[i + 1][2] : dur })) };
+  }
+  const n = Math.min(s.c, 12), dur = Math.max(20, Math.min(s.c * 8, 240)), step = dur / n;
+  return { dur, list: Array.from({ length: n }, (_, i) => ({ ar: 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ', tr: `Ayat ${i + 1}. Teks contoh, data asli dari API.`, s: i * step, e: (i + 1) * step })) };
 }
 function placeLyrics(){
   const el=lyIn.children[Math.max(S.idx,0)];if(!el)return;
@@ -266,16 +311,38 @@ async function play(i) {
   const token = playToken;
   S.cur = i;
   const s = SURAH[i];
-  const b = buildLines(s);
+
+  // Load surah data (text + timing)
+  const downloaded = S.dl.has(s.id) && S.dl.get(s.id).p >= 100;
+  let suratData = null;
+  let timingData = null;
+  try {
+    if (downloaded) {
+      const local = await loadLocalSurahData(s.id);
+      if (token !== playToken) return;
+      suratData = local.surat;
+      timingData = local.timing;
+    } else {
+      const remote = await fetchRemoteSurahData(s.id);
+      if (token !== playToken) return;
+      suratData = remote.surat;
+      timingData = remote.timing;
+    }
+  } catch (e) {
+    if (token !== playToken) return;
+    console.warn('Failed to load surah data:', e);
+  }
+
+  // Build lines with real data
+  const b = buildLinesFromData(s, suratData, timingData);
   S.lines = b.list;
-  S.dur = b.dur;
+  S.dur = b.dur || 0;
   S.t = 0;
   S.playing = true;
   buildLyrics();
   ui();
   uiProg();
 
-  const downloaded = S.dl.has(s.id) && S.dl.get(s.id).p >= 100;
   let src;
   if (downloaded) {
     src = await localAudioSrc(s.id);
@@ -289,6 +356,7 @@ async function play(i) {
     src = await remoteUrl(s.id);
   }
 
+  if (token !== playToken) return;
   audio.src = src;
   audio.currentTime = 0;
 
@@ -322,8 +390,6 @@ async function play(i) {
   const handleLoadedMeta = () => {
     if (token !== playToken) return;
     S.dur = audio.duration || S.dur;
-    const ratio = S.dur / (b.dur || 1);
-    S.lines.forEach(l => { l.s *= ratio; l.e *= ratio; });
     uiProg();
   };
   const handleWaiting = () => {
@@ -408,9 +474,17 @@ function uiProg() {
   $('sThumb').style.left = w;
   const c = fmt(cur);
   if (c !== $('tCur').textContent) $('tCur').textContent = c;
-  let k = 0;
-  for (let i = S.lines.length - 1; i >= 0; i--) {
-    if (cur >= S.lines[i].s) { k = i; break; }
+  // binary search for active line (lines sorted by start time, nulls at end)
+  let lo = 0, hi = S.lines.length - 1, k = 0;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const s = S.lines[mid].s;
+    if (s !== null && cur >= s) {
+      k = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
   }
   setActive(k);
 }
@@ -504,13 +578,28 @@ $('trTog').onclick=()=>{
 };
 lyIn.addEventListener('click',e=>{
   const l=e.target.closest('.ly');if(!l)return;
-  S.t=S.lines[+l.dataset.i].s;uiProg();
+  const lineIdx = +l.dataset.i;
+  const line = S.lines[lineIdx];
+  if (line.s !== null && line.s !== undefined) {
+    S.t = line.s;
+    uiProg();
+    if (audio.duration && !isNaN(line.s) && isFinite(line.s)) {
+      audio.currentTime = clamp(line.s, 0, audio.duration);
+    }
+  }
 });
 function seekAt(e){const r=seek.getBoundingClientRect();S.t=clamp((e.clientX-r.left)/r.width,0,1)*S.dur;uiProg()}
 seek.addEventListener('pointerdown',e=>{seek.setPointerCapture(e.pointerId);S.drag=true;seek.classList.add('drag');seekAt(e)});
 seek.addEventListener('pointermove',e=>{if(S.drag)seekAt(e)});
-const endDrag=()=>{S.drag=false;seek.classList.remove('drag')};
-seek.addEventListener('pointerup',endDrag);seek.addEventListener('pointercancel',endDrag);
+const endDrag=()=>{
+  S.drag=false;
+  seek.classList.remove('drag');
+  if (S.dur && audio.duration && !isNaN(S.t) && isFinite(S.t)) {
+    audio.currentTime = clamp(S.t, 0, audio.duration);
+  }
+};
+seek.addEventListener('pointerup',endDrag);
+seek.addEventListener('pointercancel',endDrag);
 window.addEventListener('resize',placeLyrics);
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape')closePlayer();
@@ -540,7 +629,10 @@ $('mLyr').innerHTML=ic('lyr');
 $('pLyr').innerHTML=ic('lyr');
 $('pPrev').innerHTML=ic('prev');
 $('pNext').innerHTML=ic('next');
-scanDownloaded().then(ids => { ids.forEach(id => S.dl.set(id, {p:100})); applyFilter(false); ui(); });
+stackInit();
+applyFilter(false);
+ui();
+scanDownloaded().then(ids => { ids.forEach(id => S.dl.set(id, {p:100})); applyFilter(false); ui(); }).catch(()=>{});
 requestAnimationFrame(tick);
 
 // Volume controls

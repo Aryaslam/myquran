@@ -1,7 +1,8 @@
 import { CFG } from './config.js';
 import { fetch } from '@tauri-apps/plugin-http';
 import { appDataDir, join } from '@tauri-apps/api/path';
-import { readDir, exists, mkdir, open, writeTextFile, rename } from '@tauri-apps/plugin-fs';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { readDir, exists, mkdir, open, writeTextFile, rename, readTextFile } from '@tauri-apps/plugin-fs';
 
 const pad3 = (n) => String(n).padStart(3, '0');
 
@@ -27,7 +28,46 @@ export function remoteUrl(id) {
 export async function localAudioSrc(id) {
   const base = await appDataDir();
   const path = await join(base, 'surah', pad3(id), 'audio.mp3');
-  return `asset://localhost${path}`;
+  return convertFileSrc(path);
+}
+
+export async function loadLocalSurahData(id) {
+  const base = await appDataDir();
+  const surahDir = await join(base, 'surah', pad3(id));
+  
+  let suratData = null;
+  let timingData = null;
+  
+  const suratPath = await join(surahDir, 'surat.json');
+  if (await exists(suratPath)) {
+    const content = await readTextFile(suratPath);
+    suratData = JSON.parse(content);
+  }
+  
+  const timingPath = await join(surahDir, 'timing.json');
+  if (await exists(timingPath)) {
+    const content = await readTextFile(timingPath);
+    timingData = JSON.parse(content);
+  }
+  
+  return { surat: suratData, timing: timingData };
+}
+
+export async function fetchRemoteSurahData(id) {
+  let suratData = null;
+  let timingData = null;
+
+  try {
+    const equranRes = await fetch(`${CFG.equranApi}/${id}`);
+    if (equranRes.ok) suratData = await equranRes.json();
+  } catch (e) {}
+
+  try {
+    const timingRes = await fetch(`${CFG.timingApi}?surah=${id}&read=${CFG.readId}`);
+    if (timingRes.ok) timingData = await timingRes.json();
+  } catch (e) {}
+
+  return { surat: suratData, timing: timingData };
 }
 
 export async function scanDownloaded() {
