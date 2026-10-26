@@ -172,3 +172,10 @@ h1 b{font-weight:800}
 /* Mini player responsive */
 @media (max-width:599px){.m-ar{display:none}}
 @media (max-width:479px){#mVol{display:none}}
+
+.mini button{flex:0 0 auto;min-width:42px;height:42px;aspect-ratio:1/1;border-radius:50%}
+.mini .pbtn{min-width:46px;height:46px}
+.mini svg{width:22px;height:22px;min-width:22px;flex:none}
+.m-open,.m-tx{min-width:0}
+.ctrls button{flex:none}
+.ctrls{width:min(480px,100%)}
